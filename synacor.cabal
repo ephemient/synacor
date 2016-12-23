@@ -1,0 +1,24 @@
+name:                synacor
+version:             0.1.0.0
+-- synopsis:            
+-- description:         
+license:             MIT
+license-file:        LICENSE
+author:              Daniel Lin
+maintainer:          ephemient@gmail.com
+-- copyright:           
+-- category:            
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+executable synacor
+  main-is:             Main.lhs
+  -- other-modules:       
+  -- other-extensions:    
+  build-depends:
+    base >=4.9 && <4.10, 
+    markdown-unlit
+  ghc-options:         -pgmL markdown-unlit -threaded -with-rtsopts -N
+  hs-source-dirs:      src
+  default-language:    Haskell2010

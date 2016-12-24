@@ -98,7 +98,7 @@ stepMachine machine@Machine {..} state@MachineState {..} = do
 loopMachine :: (MonadFail m) => Machine m -> MachineState -> m ()
 loopMachine machine state = stepMachine machine state >>= maybe (return ()) (loopMachine machine)
 
-run :: (Ptr Word16, Int) -> IO ()
+run :: (Ptr Word16, Word16) -> IO ()
 run (mem, _) = do
     regs <- newArray (0, 7) 0 :: IO (IOUArray Word8 Word16)
     let machine = Machine

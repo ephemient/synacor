@@ -3,7 +3,7 @@
 module Synacor.Instruction (Instruction(..), SValue(..), readInstruction) where
 
 import Control.Monad.Fail (MonadFail(..))
-import Data.Char (chr, isHexDigit, isPrint, isSpace, ord)
+import Data.Char (chr, isControl, isHexDigit, isPrint, isSpace, ord)
 import Data.Word (Word16, Word8)
 import Numeric (showHex)
 import Prelude hiding (fail)
@@ -65,8 +65,8 @@ instance Show Instruction where
     showsPrec _ (Gt dst a b) =
         showString "gt " . shows dst . showChar ' ' . shows a . showChar ' ' . shows b
     showsPrec _ (Jmp pc) = showString "jmp *" . shows pc
-    showsPrec _ (Jt pc src) = showString "jt *" . shows pc . showChar ' ' . shows src
-    showsPrec _ (Jf pc src) = showString "jf *" . shows pc . showChar ' ' . shows src
+    showsPrec _ (Jt src pc) = showString "jt " . shows src . showString " *" . shows src
+    showsPrec _ (Jf src pc) = showString "jf " . shows src . showString " *" . shows src
     showsPrec _ (Add dst a b) =
         showString "add " . shows dst . showChar ' ' . shows a . showChar ' ' . shows b
     showsPrec _ (Mult dst a b) =
@@ -83,8 +83,8 @@ instance Show Instruction where
     showsPrec _ (WMem dst src) = showString "wmem (" . shows dst . showString ") " . shows src
     showsPrec _ (Call pc) = showString "call *" . shows pc
     showsPrec _ Ret = showString "ret"
-    showsPrec _ (Out (SInt (chr . fromIntegral -> c))) | isPrint c =
-        showString "out '" . showChar c . showChar '\''
+    showsPrec _ (Out (SInt (chr . fromIntegral -> c))) | isControl c || isPrint c =
+        showString "out " . shows c
     showsPrec _ (Out src) = showString "out " . shows src
     showsPrec _ (In dst) = showString "in " . shows dst
     showsPrec _ Noop = showString "noop"
@@ -103,8 +103,8 @@ instance Read Instruction where
       , string "eq" *> return Eq <*> sp <*> sp <*> sp
       , string "gt" *> return Gt <*> sp <*> sp <*> sp
       , string "jmp" *> return Jmp <*> as
-      , string "jt" *> return Jt <*> as <*> sp
-      , string "jf" *> return Jf <*> as <*> sp
+      , string "jt" *> return Jt <*> sp <*> as
+      , string "jf" *> return Jf <*> sp <*> as
       , string "add" *> return Add <*> sp <*> sp <*> sp
       , string "mult" *> return Mult <*> sp <*> sp <*> sp
       , string "mod" *> return Mod <*> sp <*> sp <*> sp

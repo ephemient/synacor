@@ -4,6 +4,7 @@ module Synacor.SequentialReader (SequentialReader(..), getPosition, lift, setPos
 
 import Control.Applicative (Alternative(..))
 import Control.Arrow (second)
+import Control.Monad (MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
 import Prelude hiding (fail)
 
@@ -42,3 +43,7 @@ instance (Monad m) => Monad (SequentialReader m k) where
 
 instance (MonadFail m, Show k) => MonadFail (SequentialReader m k) where
     fail s = SequentialReader $ \k -> fail $ show k ++ ": " ++ s
+
+instance (MonadPlus m) => MonadPlus (SequentialReader m k) where
+    mzero = SequentialReader $ const mzero
+    SequentialReader a `mplus` SequentialReader b = SequentialReader $ \k -> a k `mplus` b k

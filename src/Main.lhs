@@ -35,12 +35,12 @@ main = do
         Run {..} -> withBin binPath run
         Disassemble {..} -> withBin binPath disassemble
 
-withBin :: Maybe FilePath -> ((Ptr Word16, Int) -> IO a) -> IO a
+withBin :: Maybe FilePath -> ((Ptr Word16, Word16) -> IO a) -> IO a
 withBin filePath f = do
     bin <- maybe (getDataFileName "challenge.bin") return filePath >>= readFile
     allocaArray 32768 $ \mem -> do
         end <- foldM copy (castPtr mem) $ toChunks bin
-        f (mem, castPtr end `minusPtr` mem)
+        f (mem, fromIntegral $ castPtr end `minusPtr` mem)
   where copy dst chunk = unsafeUseAsCStringLen chunk $ \(src, len) -> do
             copyArray dst src len
             return $ advancePtr dst len

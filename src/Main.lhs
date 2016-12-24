@@ -1,35 +1,47 @@
 ~~~ {.haskell}
-module Main where
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards, TupleSections #-}
+{-# OPTIONS_GHC -fno-cse #-}
 
-import Control.Monad (foldM_)
-import Data.Array.IO (IOUArray, newArray, readArray, writeArray)
-import Data.ByteString.Lazy (readFile, toChunks)
+module Main (main) where
+
+import Control.Monad (foldM)
+import Data.ByteString.Lazy (ByteString, readFile, toChunks)
 import Data.ByteString.Unsafe (unsafeUseAsCStringLen)
-import Data.Char (chr, ord)
-import Data.Word (Word16, Word8)
-import Foreign (advancePtr, allocaArray, castPtr, copyArray, peekElemOff, pokeElemOff)
+import Data.Word (Word16)
+import Foreign (Ptr, advancePtr, allocaArray, castPtr, copyArray, minusPtr)
 import Paths_synacor (getDataFileName)
 import Prelude hiding (readFile)
-import Synacor.Machine (Machine(..), MachineState(..), loopMachine)
-import System.Environment (getArgs)
+import Synacor.Disassembler (disassemble)
+import Synacor.Machine (run)
+import System.Console.CmdArgs.Implicit (Data, Typeable, (&=), auto, cmdArgs, def, explicit, help, modes, name, typFile)
+
+data Command
+  = Run {binPath :: Maybe FilePath}
+  | Disassemble {binPath :: Maybe FilePath}
+  deriving (Data, Typeable)
 
 main :: IO ()
 main = do
-    args <- getArgs
-    filename <- case args of arg:_ -> return arg; _ -> getDataFileName "challenge.bin"
+    args <- cmdArgs $ modes
+      [ Run
+          { binPath = def &= typFile &= explicit &= name "f" &= name "file" &= help "challenge.bin"
+          } &= auto &= help "Run the machine image"
+      , Disassemble
+          { binPath = def &= typFile &= explicit &= name "f" &= name "file" &= help "challenge.bin"
+          } &= help "Disassemble the machine image"
+            &= name "dis" &= name "disas" &= name "disassemble"
+      ]
+    case args of
+        Run {..} -> withBin binPath run
+        Disassemble {..} -> withBin binPath disassemble
+
+withBin :: Maybe FilePath -> ((Ptr Word16, Int) -> IO a) -> IO a
+withBin filePath f = do
+    bin <- maybe (getDataFileName "challenge.bin") return filePath >>= readFile
     allocaArray 32768 $ \mem -> do
-        let copy dst chunk = unsafeUseAsCStringLen chunk $ \(src, len) -> do
-                copyArray dst src len
-                return $ advancePtr dst len
-        toChunks <$> readFile filename >>= foldM_ copy (castPtr mem)
-        regs <- newArray (0, 7) 0 :: IO (IOUArray Word8 Word16)
-        let machine = Machine
-              { readMemory = peekElemOff mem . fromIntegral
-              , writeMemory = pokeElemOff mem . fromIntegral
-              , readRegister = readArray regs
-              , writeRegister = writeArray regs
-              , readInput = fromIntegral . ord <$> getChar
-              , writeOutput = putChar . chr . fromIntegral
-              }
-        loopMachine machine MachineState {stack = [], pc = 0}
+        end <- foldM copy (castPtr mem) $ toChunks bin
+        f (mem, castPtr end `minusPtr` mem)
+  where copy dst chunk = unsafeUseAsCStringLen chunk $ \(src, len) -> do
+            copyArray dst src len
+            return $ advancePtr dst len
 ~~~

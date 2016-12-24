@@ -1,13 +1,16 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Synacor.Machine where
+module Synacor.Machine (Machine(..), MachineState(..), loopMachine, run, stepMachine) where
 
 import Control.Monad (liftM2)
 import Control.Monad.Fail (MonadFail)
+import Data.Char (chr, ord)
+import Data.Array.IO (IOUArray, newArray, readArray, writeArray)
+import Foreign (Ptr, peekElemOff, pokeElemOff)
 import Data.Bits ((.&.), (.|.), complement)
 import Data.Ix (inRange, index)
 import Data.Word (Word16, Word8)
-import Synacor.Instruction (Instruction(..), SValue(SInt, SReg), readInstruction)
+import Synacor.Instruction (Instruction(..), SValue(..), readInstruction)
 import Synacor.SequentialReader (runSequentialReader, sequentially)
 
 data (Monad m) => Machine m = Machine
@@ -22,7 +25,7 @@ data (Monad m) => Machine m = Machine
 data MachineState = MachineState
   { stack :: [Word16]
   , pc :: Word16
-  } deriving (Eq, Ord, Show)
+  } deriving (Eq, Ord, Read, Show)
 
 load :: (Monad m) => Machine m -> SValue -> m Word16
 load _ (SInt imm) = return imm
@@ -42,11 +45,11 @@ stepMachine machine@Machine {..} state@MachineState {..} = do
             return $ Just state {stack = val:stack, pc = pc'}
         Pop dst | val:stack' <- stack ->
             store machine dst val >> return (Just state {stack = stack', pc = pc'})
-        Equ dst a b -> do
+        Eq dst a b -> do
             equ <- liftM2 (==) (load machine a) (load machine b)
             store machine dst $ if equ then 1 else 0
             return $ Just state {pc = pc'}
-        Gts dst a b -> do
+        Gt dst a b -> do
             gts <- liftM2 (>) (load machine a) (load machine b)
             store machine dst $ if gts then 1 else 0
             return $ Just state {pc = pc'}
@@ -94,3 +97,16 @@ stepMachine machine@Machine {..} state@MachineState {..} = do
 
 loopMachine :: (MonadFail m) => Machine m -> MachineState -> m ()
 loopMachine machine state = stepMachine machine state >>= maybe (return ()) (loopMachine machine)
+
+run :: (Ptr Word16, Int) -> IO ()
+run (mem, _) = do
+    regs <- newArray (0, 7) 0 :: IO (IOUArray Word8 Word16)
+    let machine = Machine
+          { readMemory = peekElemOff mem . fromIntegral
+          , writeMemory = pokeElemOff mem . fromIntegral
+          , readRegister = readArray regs
+          , writeRegister = writeArray regs
+          , readInput = fromIntegral . ord <$> getChar
+          , writeOutput = putChar . chr . fromIntegral
+          }
+    loopMachine machine MachineState {stack = [], pc = 0}
